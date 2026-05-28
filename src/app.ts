@@ -2,19 +2,14 @@ import Fastify from "fastify";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import { config } from "./config.js";
+import { logger } from "./lib/logger.js";
 import { healthRoute } from "./routes/health.route.js";
 import { eventsRoute } from "./routes/events.route.js";
 import { heartbeatRoute } from "./routes/heartbeat.route.js";
 
 export async function buildApp() {
   const app = Fastify({
-    logger: {
-      level: config.logLevel,
-      redact: {
-        paths: ["req.headers.authorization", "*.password", "*.secret", "*.token"],
-        censor: "[REDACTED]",
-      },
-    },
+    loggerInstance: logger,
     bodyLimit: config.maxEventSizeBytes,
     trustProxy: true,
   });

@@ -31,7 +31,17 @@ export async function heartbeatRoute(app: FastifyInstance) {
       return reply.status(403).send({ error: "projectId does not match API key" });
     }
 
-    const result = await persistHeartbeat(payload);
+    let result;
+    try {
+      result = await persistHeartbeat(payload);
+    } catch (err) {
+      if ((err as { code?: string }).code === "AGENT_NOT_FOUND") {
+        return reply.status(404).send({
+          error: "Agent not found. Register your agent in the dashboard first.",
+        });
+      }
+      throw err;
+    }
 
     req.log.info({
       agentId: payload.agentId,

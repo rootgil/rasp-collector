@@ -46,21 +46,10 @@ export async function persistHeartbeat(
   ]);
 
   if (!agent) {
-    // Register the agent if it doesn't exist yet (auto-registration on first heartbeat)
-    await prisma.agent.create({
-      data: {
-        id: payload.agentId,
-        projectId: payload.projectId,
-        language: payload.runtime ?? "unknown",
-        framework: payload.framework ?? null,
-        version: payload.agentVersion ?? "unknown",
-        status: "online",
-        mode: payload.mode,
-        lastHeartbeatAt: new Date(),
-      },
-    });
-
-    return { ok: true, killSwitch: false, policyVersion };
+    // Agent must be pre-registered via the dashboard before sending heartbeats.
+    const err = new Error("Agent not registered") as Error & { code: string };
+    err.code = "AGENT_NOT_FOUND";
+    throw err;
   }
 
   await prisma.agent.update({
