@@ -9,29 +9,11 @@ export type HeartbeatResult = {
 };
 
 /**
- * Compute a policyVersion string from the most recently updated ProjectRule (or
- * Rule) that is effectively active for the project. The agent uses this to detect
- * when its rule configuration has changed and should re-fetch the catalogue.
- *
- * Effective = Rule.enabled AND ProjectRule.enabled.
- * Falls back to "default" when the project has no active overrides.
+ * Rules are managed globally by the platform admin and enforced via hardcoded
+ * detectors in the agent. No per-project overrides exist, so policyVersion is
+ * always "default".
  */
-async function computePolicyVersion(projectId: string): Promise<string> {
-  // Latest change among project-level overrides that are fully active
-  const latestOverride = await prisma.projectRule.findFirst({
-    where: {
-      projectId,
-      enabled: true,
-      rule: { enabled: true },
-    },
-    orderBy: { updatedAt: "desc" },
-    select: { updatedAt: true },
-  });
-
-  if (latestOverride) {
-    return `policy_${latestOverride.updatedAt.getTime()}`;
-  }
-
+function computePolicyVersion(): string {
   return "default";
 }
 
@@ -43,7 +25,7 @@ export async function persistHeartbeat(
       where: { id: payload.agentId },
       select: { id: true, killSwitch: true, mode: true },
     }),
-    computePolicyVersion(payload.projectId),
+    Promise.resolve(computePolicyVersion()),
   ]);
 
   if (!agent) {
