@@ -21,7 +21,7 @@ export async function verifyApiKey(authHeader: string | undefined): Promise<Auth
   }
 
   // Extract prefix (everything up to the last underscore segment that is the key body)
-  // Seed format: "rasp_demo_key_abc123" — prefix is stored as "rasp_demo"
+  // Seed format: "rasp_demo_key_abc123" - prefix is stored as "rasp_demo"
   const prefixMatch = rawKey.match(/^([a-z_]+)/);
   if (!prefixMatch) {
     throw new AuthError("Invalid API key format");

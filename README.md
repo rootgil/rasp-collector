@@ -7,7 +7,7 @@ Separate repos: `rasp-platform` (dashboard + backoffice) · `rasp-agent-node` (r
 ## Stack
 
 - **Fastify 5** · TypeScript · Node.js 22
-- **Prisma 7** · PostgreSQL (Neon) — shared DB with `rasp-platform`
+- **Prisma 7** · PostgreSQL (Neon) - shared DB with `rasp-platform`
 - **Zod** · bcryptjs · @fastify/helmet · @fastify/rate-limit
 - **Pino** structured logs (redacts secrets)
 - **Vitest** unit tests
@@ -36,7 +36,7 @@ pnpm install
 cp .env.example .env
 ```
 
-Edit `.env` — use the **same** `DATABASE_URL` as `rasp-platform`:
+Edit `.env` - use the **same** `DATABASE_URL` as `rasp-platform`:
 
 ```
 DATABASE_URL="postgresql://user:password@ep-xyz.region.aws.neon.tech/rasp_platform?sslmode=require"
@@ -48,7 +48,7 @@ DATABASE_URL="postgresql://user:password@ep-xyz.region.aws.neon.tech/rasp_platfo
 pnpm db:generate
 ```
 
-No migration needed — schema is managed by `rasp-platform`.
+No migration needed - schema is managed by `rasp-platform`.
 
 ### 4. Run
 
@@ -108,7 +108,7 @@ curl -X POST http://localhost:4000/v1/heartbeat \
   }'
 ```
 
-Response includes `killSwitch` — if `true`, the agent must stop processing:
+Response includes `killSwitch` - if `true`, the agent must stop processing:
 
 ```json
 { "ok": true, "killSwitch": false, "policyVersion": "default" }
@@ -116,13 +116,13 @@ Response includes `killSwitch` — if `true`, the agent must stop processing:
 
 ## Security model
 
-- **Bearer API key** — bcrypt-verified against `ApiKey.keyHash` in Postgres; rejected if `revoked=true`
-- **HMAC payload integrity** — optional (`HMAC_REQUIRED=true`) via `X-RASP-Signature: sha256=<digest>`
-- **Rate limiting** — 600 req/min per IP by default (`RATE_LIMIT_PER_MINUTE`)
-- **Payload size limit** — 64 KB max (`MAX_EVENT_SIZE_BYTES`)
-- **Mandatory redaction** — events without `metadata.redacted=true` are rejected with 400
-- **Structured logs** — Authorization headers and secrets are always redacted from logs
-- **Auto-alert** — high/critical events automatically create an `Alert` record visible in `rasp-platform`
+- **Bearer API key** - bcrypt-verified against `ApiKey.keyHash` in Postgres; rejected if `revoked=true`
+- **HMAC payload integrity** - optional (`HMAC_REQUIRED=true`) via `X-RASP-Signature: sha256=<digest>`
+- **Rate limiting** - 600 req/min per IP by default (`RATE_LIMIT_PER_MINUTE`)
+- **Payload size limit** - 64 KB max (`MAX_EVENT_SIZE_BYTES`)
+- **Mandatory redaction** - events without `metadata.redacted=true` are rejected with 400
+- **Structured logs** - Authorization headers and secrets are always redacted from logs
+- **Auto-alert** - high/critical events automatically create an `Alert` record visible in `rasp-platform`
 
 ## Roadmap (production-grade)
 

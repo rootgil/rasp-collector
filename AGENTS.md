@@ -1,4 +1,4 @@
-# AGENTS.md — rasp-collector
+# AGENTS.md - rasp-collector
 
 This repository contains the RASP event collector.
 
@@ -38,9 +38,9 @@ Responsibilities:
 - Reject events without `metadata.redacted=true`.
 - Reject oversized payloads (413).
 - Return 429 when rate limit is exceeded.
-- Never store raw API keys — compare with bcrypt only.
+- Never store raw API keys - compare with bcrypt only.
 - Never log secrets (Authorization headers are redacted by Pino).
-- Fail safely under overload — no data loss, no cascade crashes.
+- Fail safely under overload - no data loss, no cascade crashes.
 
 ## File Structure
 

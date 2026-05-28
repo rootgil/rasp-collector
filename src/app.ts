@@ -24,7 +24,7 @@ export async function buildApp() {
     contentSecurityPolicy: false,
   });
 
-  // Rate limiting — per IP by default; agents get 600 req/min
+  // Rate limiting - per IP by default; agents get 600 req/min
   await app.register(rateLimit, {
     max: config.rateLimitPerMinute,
     timeWindow: "1 minute",

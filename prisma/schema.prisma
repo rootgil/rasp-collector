@@ -6,7 +6,7 @@ datasource db {
   provider = "postgresql"
 }
 
-// Mirror of rasp-platform — collector only reads/writes what it needs.
+// Mirror of rasp-platform - collector only reads/writes what it needs.
 // Full schema lives in rasp-platform/prisma/schema.prisma.
 
 model Project {
@@ -22,6 +22,7 @@ model Project {
   apiKeys        ApiKey[]
   securityEvents SecurityEvent[]
   alerts         Alert[]
+  projectRules   ProjectRule[]
 }
 
 model ApiKey {
@@ -79,4 +80,31 @@ model Alert {
   createdAt       DateTime      @default(now())
   project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   securityEvent   SecurityEvent @relation(fields: [securityEventId], references: [id], onDelete: Cascade)
+}
+
+// Read-only mirrors: collector queries ProjectRule + Rule to compute policyVersion.
+model Rule {
+  id           String        @id
+  name         String        @unique
+  type         String
+  severity     String        @default("medium")
+  description  String?
+  enabled      Boolean       @default(true)
+  config       Json?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  projectRules ProjectRule[]
+}
+
+model ProjectRule {
+  id        String   @id
+  projectId String
+  ruleId    String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  rule      Rule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, ruleId])
 }
