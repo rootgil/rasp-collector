@@ -5,6 +5,7 @@ export type HeartbeatResult = {
   ok: boolean;
   killSwitch: boolean;
   policyVersion: string;
+  mode: string;
 };
 
 /**
@@ -40,7 +41,7 @@ export async function persistHeartbeat(
   const [agent, policyVersion] = await Promise.all([
     prisma.agent.findUnique({
       where: { id: payload.agentId },
-      select: { id: true, killSwitch: true },
+      select: { id: true, killSwitch: true, mode: true },
     }),
     computePolicyVersion(payload.projectId),
   ]);
@@ -66,5 +67,6 @@ export async function persistHeartbeat(
     ok: true,
     killSwitch: agent.killSwitch,
     policyVersion,
+    mode: agent.mode,
   };
 }
