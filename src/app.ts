@@ -6,6 +6,7 @@ import { logger } from "./lib/logger.js";
 import { healthRoute } from "./routes/health.route.js";
 import { eventsRoute } from "./routes/events.route.js";
 import { heartbeatRoute } from "./routes/heartbeat.route.js";
+import { discoveryRoute } from "./routes/discovery.route.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -49,6 +50,7 @@ export async function buildApp() {
   await app.register(healthRoute);
   await app.register(eventsRoute);
   await app.register(heartbeatRoute);
+  await app.register(discoveryRoute);
 
   return app;
 }

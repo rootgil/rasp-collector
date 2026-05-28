@@ -18,11 +18,12 @@ model Project {
   environment    String          @default("production")
   collectorUrl   String?
   createdAt      DateTime        @default(now())
-  agents         Agent[]
-  apiKeys        ApiKey[]
-  securityEvents SecurityEvent[]
-  alerts         Alert[]
-  projectRules   ProjectRule[]
+  agents              Agent[]
+  apiKeys             ApiKey[]
+  securityEvents      SecurityEvent[]
+  alerts              Alert[]
+  projectRules        ProjectRule[]
+  discoveredEndpoints DiscoveredEndpoint[]
 }
 
 model ApiKey {
@@ -80,6 +81,21 @@ model Alert {
   createdAt       DateTime      @default(now())
   project         Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   securityEvent   SecurityEvent @relation(fields: [securityEventId], references: [id], onDelete: Cascade)
+}
+
+model DiscoveredEndpoint {
+  id               String   @id @default(cuid())
+  projectId        String
+  method           String
+  pathPattern      String
+  authStatus       String   @default("unknown")
+  hasSensitiveData Boolean  @default(false)
+  trafficCount     Int      @default(0)
+  firstSeenAt      DateTime @default(now())
+  lastSeenAt       DateTime @default(now())
+  project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, method, pathPattern])
 }
 
 // Read-only mirrors: collector queries ProjectRule + Rule to compute policyVersion.
