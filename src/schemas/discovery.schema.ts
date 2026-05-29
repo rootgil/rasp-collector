@@ -6,6 +6,11 @@ export const DiscoveryEntrySchema = z.object({
   authStatus: z.enum(["authenticated", "unauthenticated", "unknown"]).default("unknown"),
   hasSensitiveData: z.boolean().default(false),
   observationCount: z.number().int().min(1),
+  authObserved: z.boolean().optional(),
+  errorCount: z.number().int().min(0).optional(),
+  sumDurationMs: z.number().min(0).optional(),
+  timedCount: z.number().int().min(0).optional(),
+  schemaFields: z.record(z.string(), z.string()).optional(),
 });
 
 export const DiscoveryPayloadSchema = z.object({

@@ -23,6 +23,7 @@ model Project {
   securityEvents      SecurityEvent[]
   alerts              Alert[]
   discoveredEndpoints DiscoveredEndpoint[]
+  policies            Policy[]
 }
 
 model ApiKey {
@@ -47,9 +48,46 @@ model Agent {
   mode            String          @default("monitor")
   lastHeartbeatAt DateTime?
   killSwitch      Boolean         @default(false)
+  hmacSecret      String?
+  pinnedVersion   String?
+  targetVersion   String?
+  previousVersion String?
+  upgradeStatus   String          @default("idle")
+  lastUpgradeAt   DateTime?
+  maintenanceWindow Json?
   createdAt       DateTime        @default(now())
   project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   securityEvents  SecurityEvent[]
+}
+
+// Read-only mirror of the platform-wide kill-switch (Addendum E.6). The
+// collector reads it on each heartbeat to force ALL agents into passive mode.
+model PlatformSetting {
+  id          String   @id @default("global")
+  killSwitch  Boolean  @default(false)
+  killReason  String?
+  killedAt    DateTime?
+  updatedAt   DateTime @updatedAt
+}
+
+// Read-only mirror used by the collector to resolve canary cohorts at heartbeat.
+model AgentVersion {
+  id               String    @id
+  version          String
+  channel          String
+  status           String    @default("candidate")
+  changelog        String?
+  impact           String?
+  releasedAt       DateTime?
+  rolloutStage     Int       @default(0)
+  rolloutPercent   Int       @default(0)
+  rolloutStartedAt DateTime?
+  halted           Boolean   @default(false)
+  haltReason       String?
+  quarantined      Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+
+  @@index([channel, status])
 }
 
 model SecurityEvent {
@@ -88,12 +126,56 @@ model DiscoveredEndpoint {
   method           String
   pathPattern      String
   authStatus       String   @default("unknown")
+  authorization    String   @default("unknown")
   hasSensitiveData Boolean  @default(false)
+  riskScore        Int      @default(0)
   trafficCount     Int      @default(0)
+  errorCount       Int      @default(0)
+  avgResponseMs    Int      @default(0)
+  schema           Json?
+  isShadowApi      Boolean  @default(false)
+  isZombieApi      Boolean  @default(false)
   firstSeenAt      DateTime @default(now())
   lastSeenAt       DateTime @default(now())
   project          Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, method, pathPattern])
+}
+
+// Envelope-encryption key material per tenant (project). Mirror of the
+// platform model; the collector creates/reads keys to encrypt payloads at rest.
+model TenantKey {
+  id         String    @id @default(cuid())
+  projectId  String
+  version    Int
+  wrappedDek String?
+  active     Boolean   @default(true)
+  destroyed  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  rotatedAt  DateTime?
+
+  @@unique([projectId, version])
+  @@index([projectId, active])
+}
+
+// Mirror of rasp-platform Policy. The collector only reads it (to serve
+// GET /v1/policy and to compute heartbeat policyVersion); it never signs.
+model Policy {
+  id                 String   @id
+  projectId          String
+  version            Int
+  channel            String   @default("stable")
+  mode               String   @default("monitor")
+  detectionRules     Json?
+  redactionConfig    Json?
+  dataResidency      Json?
+  targetAgentVersion String?
+  signature          String
+  signingKeyId       String?
+  createdAt          DateTime @default(now())
+  project            Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+  @@index([projectId, channel])
 }
 

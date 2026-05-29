@@ -18,7 +18,13 @@ Separate repos: `rasp-platform` (dashboard + backoffice) · `rasp-agent-node` (r
 |---|---|---|---|
 | `GET` | `/health` | None | Service health check |
 | `POST` | `/v1/events` | Bearer API key | Ingest a security event |
-| `POST` | `/v1/heartbeat` | Bearer API key | Agent heartbeat + kill-switch check |
+| `POST` | `/v1/heartbeat` | Bearer API key | Agent heartbeat + kill-switch + policy version |
+| `POST` | `/v1/discovery` | Bearer API key | Ingest a batch of discovered API endpoints |
+| `GET` | `/v1/policy` | Bearer API key | Fetch the latest **signed** policy for the project/channel |
+
+> The collector is a **relay** for policies: it serves the control-plane-signed
+> payload verbatim and never signs or mutates it. Agents verify the Ed25519
+> signature themselves (see `rasp-platform` README → "Policy signing bootstrap").
 
 ## Quick start
 
@@ -41,6 +47,27 @@ Edit `.env` - use the **same** `DATABASE_URL` as `rasp-platform`:
 ```
 DATABASE_URL="postgresql://user:password@ep-xyz.region.aws.neon.tech/rasp_platform?sslmode=require"
 ```
+
+#### Payload encryption (shared KEK)
+
+To encrypt event payloads at rest, set the **same** `KEK_MASTER_KEY` here as in
+`rasp-platform` (see that README's "Payload encryption bootstrap"). The collector
+encrypts on ingestion; the platform decrypts for display. If unset, payloads are
+stored as plaintext (dev only).
+
+```
+KEK_MASTER_KEY="<same base64 value as rasp/.env>"
+```
+
+#### Optional hardening env vars
+
+| Var | Purpose | Default |
+|---|---|---|
+| `RATE_LIMIT_PER_MINUTE` | Per-IP/API-key request cap | `600` |
+| `ABNORMAL_VOLUME_PER_MINUTE` | Per-agent volume threshold that raises an alert | unset (off) |
+| `MTLS_REQUIRED` | Require agent client certificates (mutual TLS) | `false` |
+| `MTLS_ALLOWED_FINGERPRINTS` | Comma-separated SHA-256 cert fingerprints to allow | unset |
+| `HMAC_SECRET` | Global fallback HMAC secret when an agent has none | unset |
 
 ### 3. Generate Prisma client
 
@@ -108,10 +135,12 @@ curl -X POST http://localhost:4000/v1/heartbeat \
   }'
 ```
 
-Response includes `killSwitch` - if `true`, the agent must stop processing:
+Response includes `killSwitch` - if `true`, the agent must stop processing.
+`policyVersion` is the latest published policy version for the agent's
+project/channel; when it changes the agent re-fetches `GET /v1/policy`:
 
 ```json
-{ "ok": true, "killSwitch": false, "policyVersion": "default" }
+{ "ok": true, "killSwitch": false, "policyVersion": "3", "mode": "monitor" }
 ```
 
 ## Security model

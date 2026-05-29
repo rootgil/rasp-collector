@@ -1,5 +1,6 @@
 import { prisma } from "../../lib/prisma.js";
 import type { EventPayload } from "../../schemas/event.schema.js";
+import { encryptForProject } from "../../lib/envelope.js";
 
 const HIGH_SEVERITY = new Set(["critical", "high"]);
 
@@ -12,6 +13,11 @@ export async function persistEvent(
   payload: EventPayload,
   projectId: string
 ): Promise<PersistEventResult> {
+  // Encrypt the (already redacted) metadata at rest with the tenant DEK.
+  const encryptedPayload = payload.metadata
+    ? await encryptForProject(projectId, JSON.parse(JSON.stringify(payload.metadata)))
+    : undefined;
+
   const event = await prisma.securityEvent.create({
     data: {
       projectId,
@@ -23,9 +29,7 @@ export async function persistEvent(
       sourceIp: payload.sourceIp ?? null,
       redacted: true,
       action: payload.action,
-      payload: payload.metadata
-        ? JSON.parse(JSON.stringify(payload.metadata))
-        : undefined,
+      payload: encryptedPayload as object | undefined,
     },
   });
 

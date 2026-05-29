@@ -7,11 +7,18 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   MAX_EVENT_SIZE_BYTES: z.coerce.number().default(65536),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().default(600),
+  ABNORMAL_VOLUME_PER_MINUTE: z.coerce.number().default(300),
   HMAC_REQUIRED: z
     .string()
     .default("false")
     .transform((v) => v === "true"),
   HMAC_SECRET: z.string().optional(),
+  MTLS_REQUIRED: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
+  // Comma-separated SHA-256 fingerprints of allowed agent client certificates.
+  MTLS_ALLOWED_FINGERPRINTS: z.string().optional(),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .default("info"),
@@ -35,7 +42,13 @@ export const config = {
   databaseUrl: env.DATABASE_URL,
   maxEventSizeBytes: env.MAX_EVENT_SIZE_BYTES,
   rateLimitPerMinute: env.RATE_LIMIT_PER_MINUTE,
+  abnormalVolumePerMinute: env.ABNORMAL_VOLUME_PER_MINUTE,
   hmacRequired: env.HMAC_REQUIRED,
   hmacSecret: env.HMAC_SECRET,
+  mtlsRequired: env.MTLS_REQUIRED,
+  mtlsAllowedFingerprints: (env.MTLS_ALLOWED_FINGERPRINTS ?? "")
+    .split(",")
+    .map((f) => f.trim().replace(/:/g, "").toLowerCase())
+    .filter(Boolean),
   logLevel: env.LOG_LEVEL,
 } as const;
