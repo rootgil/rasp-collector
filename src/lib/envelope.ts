@@ -71,13 +71,13 @@ async function getActiveDek(projectId: string): Promise<{ version: number; dek: 
   const kek = masterKey();
   if (!kek) return null;
 
-  let key = await prisma.tenantKey.findFirst({
+  const key = await prisma.tenantKey.findFirst({
     where: { projectId, active: true, destroyed: false },
   });
 
   if (!key) {
     const dek = randomBytes(32);
-    key = await prisma.tenantKey.create({
+    await prisma.tenantKey.create({
       data: { projectId, version: 1, wrappedDek: wrapDek(dek, kek), active: true },
     });
     dekCache.set(`${projectId}:1`, dek);
