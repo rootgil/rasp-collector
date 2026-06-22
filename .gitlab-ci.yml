@@ -37,6 +37,7 @@ typecheck:
   <<: *only_mr_and_main
   script:
     - pnpm install --frozen-lockfile
+    - pnpm exec prisma generate
     - pnpm typecheck
   cache:
     key:
@@ -58,6 +59,7 @@ test:
     HMAC_REQUIRED: "false"
   script:
     - pnpm install --frozen-lockfile
+    - pnpm exec prisma generate
     - pnpm test
   cache:
     key:
