@@ -29,6 +29,11 @@
     "pino": "^9.7.0",
     "zod": "^4.4.3"
   },
+  "pnpm": {
+    "overrides": {
+      "hono": ">=4.12.25"
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/bcryptjs": "^3.0.0",
