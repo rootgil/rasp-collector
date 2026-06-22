@@ -22,7 +22,8 @@ default:
     - oriso-runner-01
   before_script:
     - node --version
-    - npm install -g pnpm@latest --quiet
+    - npm install -g --prefix "$HOME/.local" pnpm@9 --quiet
+    - export PATH="$HOME/.local/bin:$PATH"
     - pnpm --version
 
 .only_mr_and_main: &only_mr_and_main
