@@ -55,6 +55,16 @@ export async function persistDiscovery(payload: DiscoveryPayload): Promise<numbe
       ...(ep.schemaFields ?? {}),
     };
 
+    // Merge sensitive field names (union — never remove previously seen fields).
+    const existingSensitiveFields = Array.isArray(existing?.sensitiveFields)
+      ? (existing.sensitiveFields as string[])
+      : [];
+    const mergedSensitiveFields = ep.sensitiveFields && ep.sensitiveFields.length > 0
+      ? Array.from(new Set([...existingSensitiveFields, ...ep.sensitiveFields]))
+      : existingSensitiveFields.length > 0
+        ? existingSensitiveFields
+        : undefined;
+
     const riskScore = computeRiskScore({
       authStatus: ep.authStatus,
       authObserved: ep.authObserved ?? false,
@@ -77,6 +87,7 @@ export async function persistDiscovery(payload: DiscoveryPayload): Promise<numbe
         authStatus: ep.authStatus,
         authorization,
         hasSensitiveData: ep.hasSensitiveData,
+        sensitiveFields: mergedSensitiveFields ?? [],
         trafficCount: ep.observationCount,
         errorCount: ep.errorCount ?? 0,
         avgResponseMs,
@@ -93,6 +104,7 @@ export async function persistDiscovery(payload: DiscoveryPayload): Promise<numbe
         authStatus: ep.authStatus,
         authorization,
         hasSensitiveData: ep.hasSensitiveData,
+        ...(mergedSensitiveFields !== undefined ? { sensitiveFields: mergedSensitiveFields } : {}),
         trafficCount: newTraffic,
         errorCount: newErrors,
         avgResponseMs,

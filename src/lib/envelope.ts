@@ -39,6 +39,30 @@ function masterKey(): Buffer | null {
   }
 }
 
+/**
+ * Resolve the effective KEK for a project: BYOK (customer-provided, wrapped by
+ * master KEK) takes priority over the global master KEK (Addendum E.6).
+ * Returns null when encryption is disabled (no master KEK configured).
+ */
+async function resolveKek(projectId: string): Promise<Buffer | null> {
+  const master = masterKey();
+  if (!master) return null;
+
+  try {
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { customerKekWrapped: true },
+    });
+    if (project?.customerKekWrapped) {
+      return unwrapDek(project.customerKekWrapped, master);
+    }
+  } catch {
+    // Fall through to global KEK on any error — fail-open.
+  }
+
+  return master;
+}
+
 function aesEncrypt(key: Buffer, plaintext: Buffer): { iv: string; tag: string; ct: string } {
   const iv = randomBytes(12);
   const cipher = createCipheriv(ALGO, key, iv);
@@ -68,7 +92,7 @@ function unwrapDek(wrapped: string, kek: Buffer): Buffer {
 
 /** Get (or create) the active DEK for a project. Returns null if KEK absent. */
 async function getActiveDek(projectId: string): Promise<{ version: number; dek: Buffer } | null> {
-  const kek = masterKey();
+  const kek = await resolveKek(projectId);
   if (!kek) return null;
 
   const key = await prisma.tenantKey.findFirst({
@@ -84,10 +108,21 @@ async function getActiveDek(projectId: string): Promise<{ version: number; dek: 
     return { version: 1, dek };
   }
 
+  // Platform admin may have created a rotation placeholder (wrappedDek = null).
+  // In that case generate the DEK now and fill in the placeholder.
+  if (!key.wrappedDek) {
+    const dek = randomBytes(32);
+    await prisma.tenantKey.update({
+      where: { id: key.id },
+      data: { wrappedDek: wrapDek(dek, kek) },
+    });
+    dekCache.set(`${projectId}:${key.version}`, dek);
+    return { version: key.version, dek };
+  }
+
   const cacheKey = `${projectId}:${key.version}`;
   let dek = dekCache.get(cacheKey);
   if (!dek) {
-    if (!key.wrappedDek) return null; // crypto-shredded
     dek = unwrapDek(key.wrappedDek, kek);
     dekCache.set(cacheKey, dek);
   }
@@ -95,7 +130,7 @@ async function getActiveDek(projectId: string): Promise<{ version: number; dek: 
 }
 
 async function getDekByVersion(projectId: string, version: number): Promise<Buffer | null> {
-  const kek = masterKey();
+  const kek = await resolveKek(projectId);
   if (!kek) return null;
   const cacheKey = `${projectId}:${version}`;
   const cached = dekCache.get(cacheKey);
@@ -129,6 +164,25 @@ export function isEnvelope(value: unknown): value is Envelope {
     value !== null &&
     (value as Record<string, unknown>)._enc === true
   );
+}
+
+/**
+ * Crypto-shred: destroy all DEKs for a project.
+ * After this call every encrypted payload for the project becomes permanently
+ * unreadable, even though the ciphertext rows remain in the database.
+ */
+export async function destroyProjectKeys(projectId: string): Promise<void> {
+  await prisma.tenantKey.updateMany({
+    where: { projectId },
+    data: { wrappedDek: null, destroyed: true, active: false },
+  });
+
+  // Evict all cached DEKs for this project
+  for (const key of dekCache.keys()) {
+    if (key.startsWith(`${projectId}:`)) {
+      dekCache.delete(key);
+    }
+  }
 }
 
 /** Decrypt an {@link Envelope}; returns null if the key was destroyed. */

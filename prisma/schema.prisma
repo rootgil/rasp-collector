@@ -17,6 +17,8 @@ model Project {
   framework      String?
   environment    String          @default("production")
   collectorUrl   String?
+  // BYOK: customer-provided KEK wrapped by platform master KEK (Addendum E.6).
+  customerKekWrapped String?
   createdAt      DateTime        @default(now())
   agents              Agent[]
   apiKeys             ApiKey[]
@@ -128,6 +130,7 @@ model DiscoveredEndpoint {
   authStatus       String   @default("unknown")
   authorization    String   @default("unknown")
   hasSensitiveData Boolean  @default(false)
+  sensitiveFields  Json?
   riskScore        Int      @default(0)
   trafficCount     Int      @default(0)
   errorCount       Int      @default(0)

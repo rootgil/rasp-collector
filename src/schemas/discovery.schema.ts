@@ -11,6 +11,7 @@ export const DiscoveryEntrySchema = z.object({
   sumDurationMs: z.number().min(0).optional(),
   timedCount: z.number().int().min(0).optional(),
   schemaFields: z.record(z.string(), z.string()).optional(),
+  sensitiveFields: z.array(z.string()).optional(),
 });
 
 export const DiscoveryPayloadSchema = z.object({

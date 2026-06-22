@@ -1,5 +1,6 @@
 import Fastify from "fastify";
 import { createHash } from "node:crypto";
+import type { ServerOptions } from "node:https";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import swagger from "@fastify/swagger";
@@ -15,12 +16,16 @@ import { eventsRoute } from "./routes/events.route.js";
 import { heartbeatRoute } from "./routes/heartbeat.route.js";
 import { discoveryRoute } from "./routes/discovery.route.js";
 import { policyRoute } from "./routes/policy.route.js";
+import { pruneVolumeCounters } from "./modules/ingestion/volume-monitor.js";
 
-export async function buildApp() {
+export async function buildApp(httpsOpts?: ServerOptions) {
   const app = Fastify({
     loggerInstance: logger,
     bodyLimit: config.maxEventSizeBytes,
-    trustProxy: true,
+    // Only trust a proxy header when TLS is NOT terminated here; when we own
+    // TLS we see the real client socket and proxy headers become a spoofing risk.
+    trustProxy: !httpsOpts,
+    ...(httpsOpts ? { https: httpsOpts } : {}),
   });
 
   // OpenAPI spec + Swagger UI (registered first so all route schemas are captured)
@@ -151,6 +156,10 @@ export async function buildApp() {
   await app.register(heartbeatRoute);
   await app.register(discoveryRoute);
   await app.register(policyRoute);
+
+  // Prune in-memory volume counters every minute to prevent unbounded growth
+  const pruneInterval = setInterval(pruneVolumeCounters, 60_000);
+  app.addHook("onClose", () => clearInterval(pruneInterval));
 
   return app;
 }
