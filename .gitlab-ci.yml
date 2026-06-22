@@ -22,8 +22,7 @@ default:
     - oriso-runner-01
   before_script:
     - node --version
-    - corepack enable
-    - corepack prepare pnpm@latest --activate
+    - npm install -g pnpm@latest --quiet
     - pnpm --version
 
 .only_mr_and_main: &only_mr_and_main
