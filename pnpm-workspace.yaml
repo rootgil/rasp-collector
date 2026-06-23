@@ -1,8 +1,11 @@
 # pnpm 11 disables dependency build scripts by default (strictDepBuilds: true ->
 # ERR_PNPM_IGNORED_BUILDS). Allow Prisma to run its engine setup; relax strictness
 # so non-essential build scripts (e.g. esbuild) warn instead of failing the install.
+overrides:
+  hono: '>=4.12.25'
 strictDepBuilds: false
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
+  esbuild: set this to true or false
   prisma: true
