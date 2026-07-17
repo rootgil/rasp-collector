@@ -4,6 +4,18 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 RUN corepack enable
 
+# ── dev: hot-reload via bind mount (docker-compose.yml) ──────────────────────
+FROM base AS dev
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
+    pnpm install --frozen-lockfile
+
+ENV NODE_ENV=development
+EXPOSE 4000
+
+# Source is bind-mounted; keep node_modules in a named volume.
+CMD ["sh", "-c", "pnpm install --frozen-lockfile && pnpm db:generate && pnpm dev"]
+
 # Build: install all deps, generate the Prisma client, compile, then prune to
 # production deps. Generation and pruning happen in the SAME node_modules so the
 # generated client (node_modules/.pnpm/.../.prisma) stays consistent with pnpm's
