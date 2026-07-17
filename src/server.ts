@@ -4,15 +4,12 @@ import type { ServerOptions } from "node:https";
 import { buildApp } from "./app.js";
 import { config } from "./config.js";
 import { prisma } from "./lib/prisma.js";
+import { closeQueue, isQueueEnabled, startEventsWorker } from "./queue/events.queue.js";
 
 /**
  * Load TLS options from paths declared in env vars.
  * Returns undefined when TLS is not configured (plain-HTTP mode, for
  * deployments that terminate TLS at the load balancer instead).
- *
- * When mTLS is required the CA bundle is loaded so Node.js can verify the
- * client certificate chain. Fingerprint allow-listing is enforced by the
- * onRequest hook in app.ts.
  */
 function loadTlsOptions(): ServerOptions | undefined {
   if (!config.tlsCertPath || !config.tlsKeyPath) return undefined;
@@ -20,9 +17,6 @@ function loadTlsOptions(): ServerOptions | undefined {
     cert: readFileSync(config.tlsCertPath),
     key: readFileSync(config.tlsKeyPath),
     minVersion: "TLSv1.3",
-    // In mTLS mode: request the client cert but do NOT auto-reject unknown CAs —
-    // the fingerprint allow-list in app.ts provides the actual enforcement so
-    // operators can rotate certs without restarting the server.
     requestCert: config.mtlsRequired,
     rejectUnauthorized: false,
   };
@@ -36,15 +30,21 @@ async function start() {
   const httpsOpts = loadTlsOptions();
   const app = await buildApp(httpsOpts);
 
+  if (isQueueEnabled()) {
+    startEventsWorker();
+    app.log.info({ redisUrl: config.redisUrl }, "events worker started (QUEUE_ENABLED=true)");
+  }
+
   try {
     await app.listen({ port: config.port, host: config.host });
     const scheme = httpsOpts ? "https" : "http";
     app.log.info(
-      { tls: !!httpsOpts, mtls: config.mtlsRequired },
+      { tls: !!httpsOpts, mtls: config.mtlsRequired, queue: isQueueEnabled() },
       `rasp-collector listening on ${scheme}://${config.host}:${config.port}`
     );
   } catch (err) {
     app.log.error(err, "failed to start server");
+    await closeQueue();
     await prisma.$disconnect();
     process.exit(1);
   }
@@ -52,6 +52,7 @@ async function start() {
   const shutdown = async (signal: string) => {
     app.log.info(`received ${signal}, shutting down`);
     await app.close();
+    await closeQueue();
     await prisma.$disconnect();
     process.exit(0);
   };

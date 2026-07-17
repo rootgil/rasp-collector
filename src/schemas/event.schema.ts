@@ -6,6 +6,8 @@ export const EventSchema = z.object({
   agentVersion: z.string().optional(),
   runtime: z.string().optional(),
   framework: z.string().optional(),
+  /** Optional client event id used as idempotency key when header is absent. */
+  eventId: z.string().min(1).max(128).optional(),
   eventType: z.string().min(1),
   severity: z.enum(["critical", "high", "medium", "low"]),
   action: z.enum(["monitor", "block"]).default("monitor"),

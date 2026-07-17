@@ -185,7 +185,8 @@ describe("POST /v1/events", () => {
     expect(res.json().eventId).toBe("evt_crit001");
     expect(mockPersistEvent).toHaveBeenCalledWith(
       expect.objectContaining({ severity: "critical" }),
-      "proj_123"
+      "proj_123",
+      null
     );
   });
 });

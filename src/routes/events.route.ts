@@ -4,6 +4,7 @@ import { verifyApiKey, AuthError } from "../modules/auth/api-key.js";
 import { enforceHmac } from "../modules/auth/verify-request.js";
 import { persistEvent } from "../modules/ingestion/persist-event.js";
 import { trackVolume } from "../modules/ingestion/volume-monitor.js";
+import { enqueueEvent, isQueueEnabled } from "../queue/events.queue.js";
 
 const errorSchema = {
   type: "object",
@@ -19,6 +20,10 @@ const eventBodySchema = {
     agentVersion: { type: "string" },
     runtime: { type: "string", description: "e.g. node, python, java" },
     framework: { type: "string", description: "e.g. express, fastapi" },
+    eventId: {
+      type: "string",
+      description: "Optional client event id for idempotency (or use X-Idempotency-Key header)",
+    },
     eventType: { type: "string", minLength: 1, description: "e.g. sql-injection, xss" },
     severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
     action: { type: "string", enum: ["monitor", "block"], default: "monitor" },
@@ -45,7 +50,7 @@ export async function eventsRoute(app: FastifyInstance) {
       tags: ["ingestion"],
       summary: "Submit a security event",
       description:
-        "Accepts a redacted security event from an agent. Authentication requires a Bearer API key. When `HMAC_REQUIRED=true` the `x-rasp-signature` header must contain a valid HMAC-SHA256 signature over the raw request body.",
+        "Accepts a redacted security event from an agent. Authentication requires a Bearer API key. When `HMAC_REQUIRED=true` the `x-rasp-signature` header must contain a valid HMAC-SHA256 signature over the raw request body. When `QUEUE_ENABLED=true`, persistence is async via Redis/BullMQ.",
       security: [{ bearerAuth: [] }],
       headers: {
         type: "object",
@@ -53,6 +58,10 @@ export async function eventsRoute(app: FastifyInstance) {
           "x-rasp-signature": {
             type: "string",
             description: "HMAC-SHA256 signature (required when HMAC_REQUIRED=true)",
+          },
+          "x-idempotency-key": {
+            type: "string",
+            description: "Optional idempotency key to deduplicate retries",
           },
         },
       },
@@ -64,6 +73,8 @@ export async function eventsRoute(app: FastifyInstance) {
           properties: {
             accepted: { type: "boolean" },
             eventId: { type: "string" },
+            queued: { type: "boolean" },
+            duplicate: { type: "boolean" },
           },
         },
         400: { description: "Validation error", ...errorSchema },
@@ -74,7 +85,6 @@ export async function eventsRoute(app: FastifyInstance) {
       },
     },
   }, async (req, reply) => {
-    // --- Auth ---
     let auth: { projectId: string; apiKeyId: string };
     try {
       auth = await verifyApiKey(req.headers.authorization);
@@ -85,7 +95,6 @@ export async function eventsRoute(app: FastifyInstance) {
       throw err;
     }
 
-    // --- Payload validation ---
     const parsed = EventSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({
@@ -96,32 +105,57 @@ export async function eventsRoute(app: FastifyInstance) {
 
     const payload = parsed.data;
 
-    // --- HMAC (per-agent secret) ---
     const hmac = await enforceHmac(req, payload.agentId);
     if (!hmac.ok) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return reply.status((hmac.status ?? 401) as any).send({ error: hmac.error });
     }
 
-    // --- redacted must be true ---
     if (!payload.metadata?.redacted) {
       return reply
         .status(400)
         .send({ error: "Events must be redacted before submission (metadata.redacted must be true)" });
     }
 
-    // --- projectId consistency ---
     if (payload.projectId !== auth.projectId) {
       return reply.status(403).send({ error: "projectId does not match API key" });
     }
 
-    // --- Abnormal volume detection (per-agent / per-tenant) ---
     if (payload.agentId) {
       await trackVolume(auth.projectId, payload.agentId);
     }
 
-    // --- Persist ---
-    const result = await persistEvent(payload, auth.projectId);
+    const idempotencyKey =
+      (typeof req.headers["x-idempotency-key"] === "string"
+        ? req.headers["x-idempotency-key"]
+        : undefined) ??
+      payload.eventId ??
+      null;
+
+    if (isQueueEnabled()) {
+      const { jobId } = await enqueueEvent({
+        payload,
+        projectId: auth.projectId,
+        idempotencyKey,
+      });
+      req.log.info(
+        {
+          jobId,
+          projectId: auth.projectId,
+          agentId: payload.agentId,
+          eventType: payload.eventType,
+          severity: payload.severity,
+        },
+        "event queued"
+      );
+      return reply.status(202).send({
+        accepted: true,
+        eventId: jobId,
+        queued: true,
+      });
+    }
+
+    const result = await persistEvent(payload, auth.projectId, idempotencyKey);
 
     req.log.info({
       eventId: result.eventId,
@@ -132,8 +166,14 @@ export async function eventsRoute(app: FastifyInstance) {
       path: payload.path,
       method: payload.method,
       alertCreated: result.alertCreated,
+      duplicate: result.duplicate ?? false,
     }, "event accepted");
 
-    return reply.status(202).send({ accepted: true, eventId: result.eventId });
+    return reply.status(202).send({
+      accepted: true,
+      eventId: result.eventId,
+      queued: false,
+      duplicate: result.duplicate ?? false,
+    });
   });
 }

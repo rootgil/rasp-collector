@@ -93,21 +93,26 @@ model AgentVersion {
 }
 
 model SecurityEvent {
-  id        String   @id @default(cuid())
-  projectId String
-  agentId   String?
-  type      String
-  severity  String
-  method    String?
-  path      String?
-  sourceIp  String?
-  payload   Json?
-  redacted  Boolean  @default(true)
-  action    String   @default("monitor")
-  createdAt DateTime @default(now())
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  agent     Agent?   @relation(fields: [agentId], references: [id])
-  alerts    Alert[]
+  id              String   @id @default(cuid())
+  projectId       String
+  agentId         String?
+  type            String
+  severity        String
+  method          String?
+  path            String?
+  sourceIp        String?
+  payload         Json?
+  redacted        Boolean  @default(true)
+  action          String   @default("monitor")
+  /// Client-supplied idempotency key (header X-Idempotency-Key or payload.eventId).
+  idempotencyKey  String?
+  createdAt       DateTime @default(now())
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agent           Agent?   @relation(fields: [agentId], references: [id])
+  alerts          Alert[]
+
+  @@unique([projectId, idempotencyKey])
+  @@index([projectId, createdAt])
 }
 
 model Alert {

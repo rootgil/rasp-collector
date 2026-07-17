@@ -17,14 +17,15 @@ const envSchema = z.object({
     .string()
     .default("false")
     .transform((v) => v === "true"),
-  // Comma-separated SHA-256 fingerprints of allowed agent client certificates.
   MTLS_ALLOWED_FINGERPRINTS: z.string().optional(),
-  // TLS termination at the collector level (required for real mTLS).
-  // When not set the service listens on plain HTTP (e.g. behind a TLS proxy).
   TLS_CERT_PATH: z.string().optional(),
   TLS_KEY_PATH: z.string().optional(),
-  // CA bundle used to verify agent client certificates in mTLS mode.
   TLS_CA_PATH: z.string().optional(),
+  QUEUE_ENABLED: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
+  REDIS_URL: z.string().default("redis://localhost:6379"),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .default("info"),
@@ -59,5 +60,7 @@ export const config = {
   tlsCertPath: env.TLS_CERT_PATH,
   tlsKeyPath: env.TLS_KEY_PATH,
   tlsCaPath: env.TLS_CA_PATH,
+  queueEnabled: env.QUEUE_ENABLED,
+  redisUrl: env.REDIS_URL,
   logLevel: env.LOG_LEVEL,
 } as const;
