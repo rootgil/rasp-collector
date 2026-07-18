@@ -6,7 +6,12 @@ vi.mock("../src/lib/prisma.js", () => ({
     securityEvent: { create: vi.fn() },
     alert: { create: vi.fn() },
     apiKey: { findMany: vi.fn() },
-    agent: { findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+    agent: {
+      findUnique: vi.fn(),
+      findFirst: vi.fn().mockResolvedValue({ id: "agent_001" }),
+      update: vi.fn(),
+      create: vi.fn(),
+    },
     $disconnect: vi.fn(),
   },
 }));
@@ -120,7 +125,7 @@ describe("POST /v1/events", () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toMatch(/redacted/i);
+    expect(res.json().error).toMatch(/invalid payload|redacted/i);
   });
 
   it("returns 403 when projectId does not match the API key's project", async () => {

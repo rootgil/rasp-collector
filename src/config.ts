@@ -26,6 +26,7 @@ const envSchema = z.object({
     .default("false")
     .transform((v) => v === "true"),
   REDIS_URL: z.string().default("redis://localhost:6379"),
+  KEK_MASTER_KEY: z.string().optional(),
   LOG_LEVEL: z
     .enum(["trace", "debug", "info", "warn", "error", "fatal", "silent"])
     .default("info"),
@@ -39,6 +40,27 @@ if (!parsed.success) {
 }
 
 const env = parsed.data;
+
+if (env.NODE_ENV === "production") {
+  if (!env.HMAC_REQUIRED) {
+    console.error("HMAC_REQUIRED must be true in production");
+    process.exit(1);
+  }
+  if (!env.KEK_MASTER_KEY || Buffer.from(env.KEK_MASTER_KEY, "base64").length !== 32) {
+    console.error("KEK_MASTER_KEY (32-byte base64) is required in production");
+    process.exit(1);
+  }
+  if (env.MTLS_REQUIRED) {
+    const fps = (env.MTLS_ALLOWED_FINGERPRINTS ?? "")
+      .split(",")
+      .map((f) => f.trim())
+      .filter(Boolean);
+    if (fps.length === 0) {
+      console.error("MTLS_ALLOWED_FINGERPRINTS required when MTLS_REQUIRED=true");
+      process.exit(1);
+    }
+  }
+}
 
 export const config = {
   port: env.PORT,
@@ -62,5 +84,6 @@ export const config = {
   tlsCaPath: env.TLS_CA_PATH,
   queueEnabled: env.QUEUE_ENABLED,
   redisUrl: env.REDIS_URL,
+  kekMasterKey: env.KEK_MASTER_KEY,
   logLevel: env.LOG_LEVEL,
 } as const;

@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { DiscoveryPayloadSchema } from "../schemas/discovery.schema.js";
 import { verifyApiKey, AuthError } from "../modules/auth/api-key.js";
-import { enforceHmac } from "../modules/auth/verify-request.js";
+import { enforceHmac, assertAgentInProject } from "../modules/auth/verify-request.js";
 import { persistDiscovery } from "../modules/ingestion/persist-discovery.js";
 
 const errorSchema = {
@@ -99,7 +99,7 @@ export async function discoveryRoute(app: FastifyInstance) {
 
     const payload = parsed.data;
 
-    const hmac = await enforceHmac(req, payload.agentId);
+    const hmac = await enforceHmac(req, payload.agentId, auth.projectId);
     if (!hmac.ok) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return reply.status((hmac.status ?? 401) as any).send({ error: hmac.error });
@@ -107,6 +107,12 @@ export async function discoveryRoute(app: FastifyInstance) {
 
     if (payload.projectId !== auth.projectId) {
       return reply.status(403).send({ error: "projectId does not match API key" });
+    }
+
+    const agentCheck = await assertAgentInProject(payload.agentId, auth.projectId);
+    if (!agentCheck.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return reply.status(agentCheck.status as any).send({ error: agentCheck.error });
     }
 
     const count = await persistDiscovery(payload);

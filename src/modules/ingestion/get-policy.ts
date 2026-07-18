@@ -27,8 +27,8 @@ export async function getLatestPolicy(
 ): Promise<DistributedPolicy | null> {
   let resolvedChannel = channel;
   if (!resolvedChannel && agentId) {
-    const agent = await prisma.agent.findUnique({
-      where: { id: agentId },
+    const agent = await prisma.agent.findFirst({
+      where: { id: agentId, projectId },
       select: { channel: true },
     });
     resolvedChannel = agent?.channel ?? undefined;

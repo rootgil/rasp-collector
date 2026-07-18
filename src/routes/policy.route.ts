@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { verifyApiKey, AuthError } from "../modules/auth/api-key.js";
+import { assertAgentInProject } from "../modules/auth/verify-request.js";
 import { getLatestPolicy } from "../modules/ingestion/get-policy.js";
 
 /**
@@ -55,6 +56,13 @@ export async function policyRoute(app: FastifyInstance) {
     }
 
     const q = req.query as { agentId?: string; channel?: string };
+
+    const agentCheck = await assertAgentInProject(q.agentId, auth.projectId);
+    if (!agentCheck.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return reply.status(agentCheck.status as any).send({ error: agentCheck.error });
+    }
+
     const policy = await getLatestPolicy(auth.projectId, q.agentId, q.channel);
 
     if (!policy) {

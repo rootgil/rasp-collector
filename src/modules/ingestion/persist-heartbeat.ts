@@ -15,10 +15,11 @@ export type HeartbeatResult = {
 };
 
 export async function persistHeartbeat(
-  payload: HeartbeatPayload
+  payload: HeartbeatPayload,
+  authProjectId: string
 ): Promise<HeartbeatResult> {
-  const agent = await prisma.agent.findUnique({
-    where: { id: payload.agentId },
+  const agent = await prisma.agent.findFirst({
+    where: { id: payload.agentId, projectId: authProjectId },
     select: {
       id: true,
       projectId: true,
@@ -68,7 +69,7 @@ export async function persistHeartbeat(
       lastHeartbeatAt: new Date(),
       status: "online",
       version: payload.agentVersion ?? undefined,
-      mode: payload.mode,
+      // Mode is policy/control-plane owned — do not overwrite from heartbeat.
       // When the agent reports it now runs the target, mark the upgrade done.
       ...(payload.agentVersion && payload.agentVersion === agent.targetVersion
         ? { upgradeStatus: "succeeded", lastUpgradeAt: new Date() }

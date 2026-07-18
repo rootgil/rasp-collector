@@ -28,43 +28,44 @@ export async function buildApp(httpsOpts?: ServerOptions) {
     ...(httpsOpts ? { https: httpsOpts } : {}),
   });
 
-  // OpenAPI spec + Swagger UI (registered first so all route schemas are captured)
-  await app.register(swagger, {
-    openapi: {
-      openapi: "3.0.3",
-      info: {
-        title: "RASP Collector API",
-        description:
-          "Telemetry ingestion endpoint for RASP agents. Agents authenticate with a Bearer API key and submit security events, heartbeats, and endpoint-discovery batches.",
-        version: "0.1.0",
-      },
-      servers: [{ url: `http://localhost:${config.port}`, description: "Local" }],
-      components: {
-        securitySchemes: {
-          bearerAuth: {
-            type: "http",
-            scheme: "bearer",
-            description: "API key issued by the RASP platform (Authorization: Bearer <key>)",
+  // OpenAPI /docs only outside production (or when ENABLE_DOCS=true).
+  if (config.isDev || config.isTest || process.env.ENABLE_DOCS === "true") {
+    await app.register(swagger, {
+      openapi: {
+        openapi: "3.0.3",
+        info: {
+          title: "RASP Collector API",
+          description:
+            "Telemetry ingestion endpoint for RASP agents. Agents authenticate with a Bearer API key and submit security events, heartbeats, and endpoint-discovery batches.",
+          version: "0.1.0",
+        },
+        servers: [{ url: `http://localhost:${config.port}`, description: "Local" }],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: "http",
+              scheme: "bearer",
+              description: "API key issued by the RASP platform (Authorization: Bearer <key>)",
+            },
           },
         },
+        tags: [
+          { name: "health", description: "Service health check" },
+          { name: "ingestion", description: "Agent telemetry ingestion" },
+        ],
       },
-      tags: [
-        { name: "health", description: "Service health check" },
-        { name: "ingestion", description: "Agent telemetry ingestion" },
-      ],
-    },
-  });
+    });
 
-  await app.register(swaggerUi, {
-    routePrefix: "/docs",
-    uiConfig: {
-      docExpansion: "list",
-      deepLinking: true,
-      persistAuthorization: true,
-    },
-    staticCSP: false,
-  });
-
+    await app.register(swaggerUi, {
+      routePrefix: "/docs",
+      uiConfig: {
+        docExpansion: "list",
+        deepLinking: true,
+        persistAuthorization: true,
+      },
+      staticCSP: false,
+    });
+  }
   // Skip AJV body validation; Zod inside each handler is the source of truth.
   app.setValidatorCompiler(() => () => true);
   app.setSerializerCompiler(() => (data) => JSON.stringify(data));
@@ -128,10 +129,10 @@ export async function buildApp(httpsOpts?: ServerOptions) {
         return reply.status(496).send({ error: "Client certificate required" });
       }
       const fp = createHash("sha256").update(cert.raw).digest("hex");
-      if (
-        config.mtlsAllowedFingerprints.length > 0 &&
-        !config.mtlsAllowedFingerprints.includes(fp)
-      ) {
+      if (config.mtlsAllowedFingerprints.length === 0) {
+        return reply.status(500).send({ error: "mTLS misconfigured: empty allowlist" });
+      }
+      if (!config.mtlsAllowedFingerprints.includes(fp)) {
         return reply.status(403).send({ error: "Client certificate not allowed" });
       }
     });
@@ -146,7 +147,7 @@ export async function buildApp(httpsOpts?: ServerOptions) {
     }
     app.log.error({ err: error }, "unhandled error");
     return reply.status(statusCode ?? 500).send({
-      error: error.message ?? "Internal server error",
+      error: config.isDev ? (error.message ?? "Internal server error") : "Internal server error",
     });
   });
 
